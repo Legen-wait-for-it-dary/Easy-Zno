@@ -1,64 +1,111 @@
 package com.onyshchenko.artem.easyzno;
 
 import android.content.Context;
-import android.content.res.Resources;
-import android.support.v4.content.ContextCompat;
+import android.content.Intent;
+import android.content.res.Configuration;
+import android.support.v4.app.Fragment;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
+import android.support.v7.widget.SearchView;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.ArrayAdapter;
+import android.widget.AdapterView;
 import android.widget.BaseAdapter;
 import android.widget.ListView;
 import android.widget.TextView;
 
-import java.lang.reflect.Field;
+import com.onyshchenko.artem.easyzno.model.Subject;
+import com.onyshchenko.artem.easyzno.model.SubjectContainer;
+
+import java.util.List;
+
 
 public class MainActivity extends AppCompatActivity {
 
-    private static final String [] subjects = {"Математика", "Українська мова і література", "Англійська мова"};
-    private static final Integer [] numberTests = {20, 10, 16};
+    public static final String TAG = "EasyZno";
+    private int currentSubjectIndex = 0;
+    private ListView listView;
 
-    private ArrayAdapter<String> listAdapter;
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        Log.d(TAG, "MainActivity onCreate");
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-        ListView listView = (ListView)findViewById(R.id.subjectsListView);
-        SubjectsAdapter adapter = new SubjectsAdapter(this, subjects, numberTests);
-        listView.setAdapter(adapter);
+        gatherWidgets();
+        setEventListeners();
+        listView.setAdapter(new SubjectsAdapter(this, SubjectContainer.getInstance().getSubjects()));
+
+        if(isMultiPane()) {
+            Fragment testsFragment = getSupportFragmentManager().findFragmentById(R.id.tests_container);
+            if(testsFragment == null) {
+                testsFragment = TestsFragment.newInstance(currentSubjectIndex);
+                getSupportFragmentManager()
+                        .beginTransaction()
+                        .add(R.id.tests_container, testsFragment)
+                        .commit();
+            }
+        }
+    }
+
+    private void gatherWidgets() {
+        listView = (ListView)findViewById(R.id.subjectsListView);
+    }
+
+    private void setEventListeners() {
+        listView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+            @Override
+            public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
+                int subjectId = ((Subject)listView.getItemAtPosition(position)).getId();
+                TestsFragment testsFragment = (TestsFragment) getSupportFragmentManager().findFragmentById(R.id.tests_container);
+                if (isMultiPane()) {
+                    testsFragment.updateUI(subjectId);
+                } else {
+                    Intent intent = TestsActivity.newIntent(getApplicationContext(), subjectId);
+                    startActivity(intent);
+                }
+            }
+        });
+    }
+
+    private boolean isMultiPane() {
+        return getResources().getConfiguration().orientation == Configuration.ORIENTATION_LANDSCAPE;
     }
 
     public static class SubjectsAdapter extends BaseAdapter {
 
-        private final String [] subjects;
-        private final Integer [] numberTests;
+        private final List<Subject> subjects;
         private final Context context;
         private final LayoutInflater layoutInflater;
 
-        public SubjectsAdapter(Context context, String [] subjects, Integer [] numberTests) {
+        public SubjectsAdapter(Context context, List<Subject> subjects) {
             this.context = context;
             this.subjects = subjects;
-            this.numberTests = numberTests;
             layoutInflater = LayoutInflater.from(this.context);
         }
 
-        static class ViewHolder {
+        static class ViewHolder{
+            private int subjectId;
             TextView subjectNameTxtView;
             TextView subjectNameAbbreviationTxtView;
             TextView testsNumberTxtView;
             TextView rightBorderTxtView;
+
+            public ViewHolder(int subjectId) {
+                this.subjectId = subjectId;
+            }
+
         }
 
         @Override
         public int getCount() {
-            return subjects.length;
+            return subjects.size();
         }
 
         @Override
         public Object getItem(int position) {
-            return subjects[position];
+            return subjects.get(position);
         }
 
         @Override
@@ -71,8 +118,8 @@ public class MainActivity extends AppCompatActivity {
             int color = 0;
             ViewHolder viewHolder;
             if(convertView == null) {
-                convertView = layoutInflater.inflate(R.layout.subject_item_list_row, null);
-                viewHolder = new ViewHolder();
+                convertView = layoutInflater.inflate(R.layout.tests_item_list_row, null);
+                viewHolder = new ViewHolder(SubjectContainer.getInstance().getSubjects().get(position).getId());
                 viewHolder.subjectNameTxtView = (TextView) convertView.findViewById(R.id.subjectNameTxtView);
                 viewHolder.subjectNameAbbreviationTxtView = (TextView) convertView.findViewById(R.id.subjectNameAbbreviationTxtView);
                 viewHolder.testsNumberTxtView = (TextView) convertView.findViewById(R.id.testsNumberTxtView);
@@ -85,10 +132,10 @@ public class MainActivity extends AppCompatActivity {
 
             color = context.getResources().getIntArray(R.array.flat_colors)[position];
 
-            viewHolder.subjectNameAbbreviationTxtView.setText(String.valueOf(subjects[position].charAt(0)));
+            viewHolder.subjectNameAbbreviationTxtView.setText(String.valueOf(subjects.get(position).getName().charAt(0)));
             viewHolder.subjectNameAbbreviationTxtView.setBackgroundColor(color);
-            viewHolder.subjectNameTxtView.setText(subjects[position]);
-            viewHolder.testsNumberTxtView.setText(numberTests[position].toString());
+            viewHolder.subjectNameTxtView.setText(subjects.get(position).getName());
+            viewHolder.testsNumberTxtView.setText(String.valueOf(subjects.get(position).getNumberTests()));
             viewHolder.rightBorderTxtView.setBackgroundColor(color);
             return convertView;
         }
